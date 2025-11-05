@@ -43,8 +43,14 @@ async function main() {
   await tokenA.approve(await flash.getAddress(), fundFlash);
   await flash.fund(fundFlash);
 
-  // deploy attacker contract
-  const attacker = await Attacker.deploy(await tokenA.getAddress(), await tokenB.getAddress(), await amm.getAddress(), await lending.getAddress());
+  // deploy attacker contract with beneficiary = attackerEOA.address
+  const attacker = await Attacker.deploy(
+    await tokenA.getAddress(),
+    await tokenB.getAddress(),
+    await amm.getAddress(),
+    await lending.getAddress(),
+    attackerEOA.address
+  );
   await attacker.waitForDeployment();
 
   // Fund attacker EOA with some TokenA collateral and have attacker deposit collateral into lending (via EOA or via attacker contract)
