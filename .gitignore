@@ -1,18 +1,5 @@
-# Node
 node_modules/
-package-lock.json
-npm-debug.log
-.env
-
-# Hardhat artifacts / cache
 artifacts/
 cache/
 typechain/
-
-# OS / editor
-.DS_Store
-.vscode/
-*.swp
-
-# Local node key files (if any)
-hh-data/
+ignition/
