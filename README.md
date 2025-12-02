@@ -1,9 +1,50 @@
- 1. Prerequisites
+DeFi Flash-Loan Oracle Manipulation Lab
+
+A complete hands-on simulation of a real DeFi price-oracle exploit using flash loans and AMM reserve manipulation.
+
+This project demonstrates how an attacker:
+
+Takes a flash loan
+
+Manipulates an AMM price oracle
+
+Triggers an under-collateralized loan
+
+Drains a lending pool
+
+Extracts profit into their own wallet
+
+An interactive React dashboard visualizes the exploit step by step.
+
+Table of Contents
+
+Prerequisites
+
+Installation
+
+MetaMask Configuration
+
+Running the Lab
+
+Starting the Dashboard
+
+Exploit Walkthrough
+
+Price Chart Behavior
+
+Expected Results
+
+Troubleshooting
+
+Summary
+
+1. Prerequisites
+
 Install:
 
 Node.js 18–22 (LTS recommended)
 
-npm (bundled with Node)
+npm (bundled with Node.js)
 
 MetaMask browser extension
 
@@ -21,236 +62,220 @@ OpenZeppelin ERC20
 
 Hardhat Toolbox
 
- 2. Install Dependencies
+2. Installation
 
 From project root:
 
 npm install
 
 
-Then install dashboard dependencies:
+Install dashboard dependencies:
 
 cd dashboard
 npm install
 
- 3. Configure MetaMask for Hardhat Network
-Add Hardhat Local Network:
+3. MetaMask Configuration
 
-MetaMask → Networks → Add Network → “Add a network manually”
+Add the Hardhat local network.
 
+Network Settings
 Field	Value
 Network Name	Hardhat Local
 RPC URL	http://127.0.0.1:8545
 
 Chain ID	31337
 Currency Symbol	ETH
-Import Hardhat Accounts
+Import Accounts
 
-Hardhat node prints 20 accounts. Import these two:
+Hardhat prints 20 accounts when the local chain starts. Import:
 
 Account #0 → Deployer
 
 Account #1 → Attacker / Beneficiary
 
-MetaMask → Account Menu → Import Account → paste private key.
+In MetaMask:
+Account Menu → Import Account → paste private key
 
- 4. Running the Lab (Full Setup)
-Terminal 1 — Start the Local Blockchain
+4. Running the Lab
+Terminal 1 – Start Local Blockchain
 npx hardhat node
 
 
-Leave this running.
+Leave this terminal running.
 
-Terminal 2 — Deploy Base Contracts
+Terminal 2 – Deploy Base Contracts
 npx hardhat run scripts/deployFlashSetup.js --network localhost
 
 
-You should see:
+You should see output confirming:
 
-✔ TokenA deployed
-✔ TokenB deployed
-✔ AMM deployed and seeded (1000 A / 1000 B)
-✔ Lending pool funded (5000 B)
-✔ Flash loan provider funded (2000 A)
-✔ Beneficiary prefunded with 100 TokenA
-✔ contracts.json written to frontend
+TokenA deployed
 
-Terminal 2 — Deploy Attacker Contract
+TokenB deployed
+
+AMM seeded (1000 A / 1000 B)
+
+Lending pool funded (5000 B)
+
+Flash loan provider funded (2000 A)
+
+Beneficiary prefunded (100 A)
+
+contracts.json written to dashboard
+
+Deploy Attacker Contract
 npx hardhat run scripts/deployAttackerWithBeneficiary.js --network localhost
 
 
-You should see:
-
-✔ AttackerFlash deployed at: 0x...
-✔ Beneficiary: 0x7099...
-✔ contracts.json updated
-
-
-This file is located at:
+This updates:
 
 dashboard/src/contracts.json
 
 
-React reads deployed addresses from this file automatically.
+The dashboard automatically reads deployed addresses from this file.
 
- 5. Start the Dashboard
+5. Starting the Dashboard
 cd dashboard
 npm start
 
 
-The UI opens at:
+Runs at:
 
 http://localhost:3000
 
- 6. Exploit Walkthrough (Sequential Demo)
+6. Exploit Walkthrough
 
-This is the exact order to demo the exploit.
+Follow this exact sequence for the full exploit demonstration.
 
-STEP 1 — Connect as Account 0 (Deployer)
+Step 1 — Use Account 0 (Deployer)
 
-Click → Connect MetaMask
-
-UI should show:
-
-Connected: 0xf39f...
-
-
-Then click:
-
- Fund Attacker (900.4 A)
-
-✔ Sends 900.4 TokenA from Account 0 to the attacker contract.
-
-STEP 2 — Switch to Account 1 (Attacker Beneficiary)
-
-In MetaMask → Switch account → Account 1.
-
-Then click:
-
-Connect MetaMask again (important — updates the signer).
-
-UI should show:
-
-Connected: 0x7099...
-
+Click Connect MetaMask (should show deployer address).
 
 Click:
 
- Deposit Collateral (100 A)
+Fund Attacker (900.4 A)
 
-✔ Account 1 transfers 100 A to attacker contract
-✔ Attacker contract deposits 100 A into Lending
-✔ Lending panel updates:
+This transfers 900.4 TokenA from Account 0 to the attacker contract.
+
+Step 2 — Switch to Account 1 (Attacker Beneficiary)
+
+Switch in MetaMask and then click Connect MetaMask again.
+
+Click:
+
+Deposit Collateral (100 A)
+
+This performs:
+
+Transfer of 100 A from Account 1
+
+Attacker contract depositing 100 A into the lending pool
+
+Lending panel should show roughly:
 
 Collateral: 100 A
-Value (B): ≈ 100 B
-Max Borrow: ≈ 50 B
 
-STEP 3 — Execute the Flash Loan Exploit
+Value: ~100 B
+
+Max Borrow: ~50 B
+
+Step 3 — Execute the Flash Loan Exploit
 
 Click:
 
- Execute Flash Loan Attack
+Execute Flash Loan Attack
 
-Internally:
+Internal sequence:
 
-FlashLoanProvider lends 800 A
+Flash loan provider lends 800 A
 
-Attacker contract swaps A→B (crashes AMM price)
+Attacker swaps A→B, crashing AMM price
 
 Collateral value collapses
 
-Attacker borrows max B despite tiny value
+Attacker borrows maximum B allowed
 
-Pays back loan + fee
+Flash loan repaid with small fee
 
-Sends stolen TokenB to Account 1
+Stolen TokenB transferred to Account 1
 
-Expected Results:
-AMM Market
-Reserve A: ~1800
-Reserve B: ~550
-Spot Price: ~0.30 B/A
+7. Price Chart Behavior
 
-Lending Panel
-Collateral: 100 A
-Borrowed: ~15 B
-Max Borrow: ~15 B
-Pool Balance: ~4984 B
+The chart:
 
-Attack Summary
-Attacker Profit: ~450 B
-Pool Remaining: ~4984 B
+Remains flat during normal usage
 
- 7. Price Chart Behavior
+Drops sharply when price is manipulated
 
-The price chart:
+Reflects AMM reserve-based pricing
 
-Stays flat during normal operation
+Does not auto-correct without new swaps
 
-Drops sharply during price manipulation
+Real AMMs (Uniswap-style) price purely from reserves; no external oracle.
 
-Shows market distortion caused by the flash loan
-
-Does not revert unless more swaps occur
-
-This matches real AMM behavior: spot price is purely reserve-based.
-
- 8. Expected Final Screen (Correct Exploit)
+8. Expected Results
 
 You should see:
 
-Collateral = 100 A
+AMM Market
 
-Spot price ≈ 0.30 B/A
+Reserve A: ~1800
 
-Borrowed ≈ 15.4 B
+Reserve B: ~550
 
-Pool Remaining ≈ 4984 B
+Spot Price: ~0.30 B/A
 
-Attacker Profit ≈ 450 B
+Lending Panel
 
-Chart shows a steep price drop
+Collateral: 100 A
 
-If numbers look similar → exploit succeeded.
+Borrowed: ~15 B
 
- 9. Troubleshooting
- Deposit fails
+Max Borrow: ~15 B
 
-Cause: Account 1 has <100 TokenA.
-Fix: redeploy cleanly; ensure prefund step runs.
- Manipulate Price fails
+Pool Remaining: ~4984 B
 
-Cause: Using EOA swap; attacker contract has the A tokens.
-Fix: use manualManipulate or rely on flash-loan manipulation.
+Attack Summary
 
- Flash loan fails with "zero borrow"
+Attacker Profit: ~450 B
 
-Cause: Lending didn’t record collateral.
-Fix: Ensure depositCollateral() exists and ABI is updated.
+Pool Remaining: ~4984 B
 
- React buttons break when switching MetaMask account
+If your results are similar, the exploit completed successfully.
 
-Fix: Always click Connect MetaMask after switching accounts.
+9. Troubleshooting
 
- ABI mismatch
+Deposit fails
+Cause: Account 1 has fewer than 100 A.
+Fix: Redeploy and ensure prefund step ran correctly.
 
-Fix: When updating Solidity:
-Copy from artifacts/.../Contract.json → dashboard/src/abis
+Price manipulation fails
+Cause: Swapping using EOA instead of contract.
+Fix: Use provided manipulation or flash-loan path.
 
-🎉 10. Summary
+Flash loan returns "zero borrow"
+Cause: Collateral not recorded.
+Fix: Ensure depositCollateral() is correct and ABI is up to date.
 
-This lab shows:
+React buttons break after switching accounts
+Fix: Always reconnect MetaMask after switching.
 
-Oracle manipulation via AMM reserve imbalance
+ABI mismatch
+Fix: Copy updated artifact ABI into dashboard/src/abis.
+
+10. Summary
+
+This lab demonstrates:
+
+AMM oracle manipulation via reserve imbalance
 
 Flash-loan-driven price distortion
 
-Under-collateralized lending
+Under-collateralized borrowing
 
-Exploit profit extraction
+Full exploit lifecycle and profit extraction
 
-Visualization of attack sequence
+Real-time visualization in React
 
 To run the exploit:
 
@@ -258,6 +283,6 @@ Fund Attacker (Account 0)
 
 Deposit Collateral (Account 1)
 
-Execute Flash Loan (Account 1)
+Execute Flash Loan Attack (Account 1)
 
-This replicates how real DeFi hacks (Cream Finance, Harvest, Cheese Bank, bZx, etc.) have been executed in the wild.
+This closely mirrors real-world flash-loan oracle attacks such as those on Cream Finance, Harvest, Cheese Bank, and bZx.
