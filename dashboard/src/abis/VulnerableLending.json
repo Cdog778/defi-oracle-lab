@@ -67,7 +67,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "amountB",
+          "name": "amountA",
           "type": "uint256"
         }
       ],
@@ -84,7 +84,7 @@
           "type": "address"
         }
       ],
-      "name": "collateralA",
+      "name": "collateralB",
       "outputs": [
         {
           "internalType": "uint256",
@@ -103,7 +103,7 @@
           "type": "address"
         }
       ],
-      "name": "debtB",
+      "name": "debtA",
       "outputs": [
         {
           "internalType": "uint256",
@@ -131,7 +131,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "amountB",
+          "name": "amountA",
           "type": "uint256"
         }
       ],
@@ -143,8 +143,37 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getBorrowingPower",
+      "outputs": [
+        {
           "internalType": "uint256",
-          "name": "amountB",
+          "name": "maxBorrowA",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "currentDebtA",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "availableBorrowA",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amountA",
           "type": "uint256"
         }
       ],
@@ -177,6 +206,19 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawCollateral",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     }
   ],

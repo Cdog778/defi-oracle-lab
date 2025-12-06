@@ -1,25 +1,11 @@
-const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-// Merge contract JSON
-function saveFrontendFiles(data) {
-  const contractsDir = path.join(__dirname, "..", "dashboard", "src");
-  const filePath = path.join(contractsDir, "contracts.json");
-
-  let existing = {};
-  if (fs.existsSync(filePath)) {
-    existing = JSON.parse(fs.readFileSync(filePath));
-  }
-
-  fs.writeFileSync(filePath, JSON.stringify({ ...existing, ...data }, null, 2));
-  console.log("✔ Frontend updated with attacker contract");
-}
-
 async function main() {
-  const [deployer, attackerEOA] = await hre.ethers.getSigners();
+  console.log("\n⚠️  NOTE: deployAttackerWithBeneficiary.js is deprecated");
+  console.log("   deployFlashSetup.js now handles all contract deployments including AttackerFlash\n");
 
-  // Load base deploy addresses
+  // Load deployed contract addresses
   const contractsPath = path.join(
     __dirname,
     "..",
@@ -34,37 +20,19 @@ async function main() {
 
   const deployed = JSON.parse(fs.readFileSync(contractsPath));
 
-  const TOKENA = deployed.tokenA;
-  const TOKENB = deployed.tokenB;
-  const AMM = deployed.amm;
-  const LENDING = deployed.lending;
+  console.log("✓ Loaded deployed contracts from:", contractsPath);
+  console.log("  TokenA:        ", deployed.tokenA);
+  console.log("  TokenB:        ", deployed.tokenB);
+  console.log("  AMM1:          ", deployed.amm1);
+  console.log("  AMM2:          ", deployed.amm2);
+  console.log("  VulnerableLending:", deployed.lending);
+  console.log("  FlashLoanProvider:", deployed.flashProvider);
+  console.log("  AttackerFlash: ", deployed.attacker);
+  console.log("  Beneficiary:   ", deployed.beneficiary);
 
-  console.log("Loaded existing contracts:");
-  console.log(" TokenA:", TOKENA);
-  console.log(" TokenB:", TOKENB);
-  console.log(" AMM:", AMM);
-  console.log(" Lending:", LENDING);
-
-  // Deploy attacker contract
-  const AttackerFlash = await hre.ethers.getContractFactory("AttackerFlash");
-  const attackerContract = await AttackerFlash.deploy(
-    TOKENA,
-    TOKENB,
-    AMM,
-    LENDING,
-    attackerEOA.address // beneficiary
-  );
-
-  await attackerContract.deployed();
-
-  console.log("✔ AttackerFlash deployed at:", attackerContract.address);
-  console.log("✔ Beneficiary:", attackerEOA.address);
-
-  // Save back to frontend
-  saveFrontendFiles({
-    attacker: attackerContract.address,
-    beneficiary: attackerEOA.address,
-  });
+  console.log("\n✓ All contracts ready. You can now:");
+  console.log("  1. Run: npx hardhat run scripts/runFlashExploit.js --network localhost");
+  console.log("  2. Or open: http://localhost:3000 (React dashboard)");
 }
 
 main().catch((err) => {

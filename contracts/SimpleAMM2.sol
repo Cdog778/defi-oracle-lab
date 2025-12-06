@@ -4,19 +4,26 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title SimpleAMM
- * @notice Constant-product AMM (x*y=k) supporting bidirectional swaps
- * SUPPORTS:
- * - swapAForB: Trade TokenA → TokenB (pumps B price)
- * - swapBForA: Trade TokenB → TokenA (dumps B price)
- * - getSpotPrice: Returns A per B (how many A per 1 B)
+ * @title SimpleAMM2
+ * @notice Second constant-product AMM pool for realistic attack flow
+ * 
+ * DESIGN:
+ * - AMM1 is seeded heavily (high liquidity) → used for price manipulation
+ * - AMM2 is seeded lightly (low liquidity) → used for "fair price" repayment
+ * - Together they demonstrate a realistic attack:
+ *   1. Pump B price on AMM1 using flash-loaned A
+ *   2. Deposit inflated B as collateral
+ *   3. Borrow A against inflated collateral
+ *   4. Use some borrowed A to repay flash loan
+ *   5. Use remaining borrowed A to swap for B on AMM2 (fair price)
+ *   6. Keep leftover A as profit
  */
-contract SimpleAMM {
+contract SimpleAMM2 {
     IERC20 public tokenA;
     IERC20 public tokenB;
     uint256 public reserveA;
     uint256 public reserveB;
-    uint256 public constant FEE_BP = 30; // 0.3% fee (30 basis points)
+    uint256 public constant FEE_BP = 30; // 0.3% fee
     uint256 public constant BP_DIVISOR = 10000;
 
     constructor(address _tokenA, address _tokenB) {
@@ -38,7 +45,7 @@ contract SimpleAMM {
     }
 
     /**
-     * @notice Swap TokenA for TokenB using constant-product formula
+     * @notice Swap TokenA for TokenB
      * @param amountIn Amount of TokenA to swap in
      * @return amountOut Amount of TokenB received
      */
@@ -59,7 +66,7 @@ contract SimpleAMM {
     }
 
     /**
-     * @notice Swap TokenB for TokenA using constant-product formula
+     * @notice Swap TokenB for TokenA
      * @param amountIn Amount of TokenB to swap in
      * @return amountOut Amount of TokenA received
      */
@@ -82,7 +89,6 @@ contract SimpleAMM {
     /**
      * @notice Get the current spot price: how many A per 1 B
      * @return priceAPerB Price of A in terms of B (scaled by 1e18)
-     * FORMULA: priceAPerB = reserveA / reserveB * 1e18
      */
     function getSpotPrice() external view returns (uint256) {
         require(reserveA > 0 && reserveB > 0, "empty reserves");
@@ -90,7 +96,7 @@ contract SimpleAMM {
     }
 
     /**
-     * @notice Get current reserves (for debugging/UI)
+     * @notice Get current reserves
      */
     function getReserves() external view returns (uint256, uint256) {
         return (reserveA, reserveB);

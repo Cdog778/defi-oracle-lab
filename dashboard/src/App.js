@@ -12,45 +12,76 @@ function App() {
   const [account, setAccount] = useState(null);
   const [networkOk, setNetworkOk] = useState(false);
 
-  // Chart state
   const [chartLabels, setChartLabels] = useState([]);
   const [chartData, setChartData] = useState([]);
-
-  // ------- AMM STATE -------
   const [amm, setAmm] = useState({
     reserveA: "0",
     reserveB: "0",
     price: "0",
   });
-
-  // ------- LENDING STATE -------
   const [lend, setLend] = useState({
-    collateral: "0",
-    collateralValue: "0",
-    debt: "0",
-    maxBorrow: "0",
-    poolBalance: "0",
+    collateralB: "0",
+    collateralValueA: "0",
+    debtA: "0",
+    maxBorrowA: "0",
+    poolBalanceA: "0",
   });
-
-  // ------- FLASH LOAN STATE -------
   const [flash, setFlash] = useState({
     poolA: "0",
     fee: "0.05%",
   });
-
-  // ------- ATTACK SUMMARY -------
-  const [attackerStats, setAttackerStats] = useState({
-    profitB: "0",
-    poolRemainingB: "0",
+  const [attackState, setAttackState] = useState({
+    beneficiaryA: "0",
+    beneficiaryB: "0",
+    myCollateral: "0",
+    myDebt: "0",
+    lastProfit: "0",
+    succeeded: false,
+  });
+  const [debugState, setDebugState] = useState({
+    loanedAmount: "0",
+    boughtB: "0",
+    inflatedPrice: "0",
+    collateralValueInA: "0",
+    maxBorrowA: "0",
+    flashFee: "0",
+    repaymentAmount: "0",
+    borrowAmount: "0",
+    contractBalanceAfter: "0",
+    leftoverA: "0",
+    priceMultiplier: "0",
+    profitROI: "0",
+    ltvUsed: "0",
+    pricePumpPercentage: "0",
   });
 
-  // Initialize provider
+  // Initialize Web3 provider from MetaMask
   useEffect(() => {
     if (window.ethereum) {
       const prov = new ethers.providers.Web3Provider(window.ethereum);
       setProvider(prov);
     }
   }, []);
+
+  useEffect(() => {
+  if (!signer) return;
+
+  const interval = setInterval(async () => {
+    try {
+      const c = getContracts(signer);
+      const reserveA = await c.tokenA.balanceOf(CONTRACTS.amm);
+      const reserveB = await c.tokenB.balanceOf(CONTRACTS.amm);
+      const noiseA = reserveA.mul(Math.floor(Math.random() * 5) + 1).div(10000);
+      const noiseB = reserveB.mul(Math.floor(Math.random() * 5) + 1).div(10000);
+      const newPrice = reserveB.sub(noiseB).mul(ethers.BigNumber.from(10).pow(18))
+        .div(reserveA.add(noiseA));
+      setChartLabels(prev => [...prev, new Date().toLocaleTimeString()]);
+      setChartData(prev => [...prev, parseFloat(ethers.utils.formatEther(newPrice))]);
+    } catch {}
+  }, 20000);
+
+  return () => clearInterval(interval);
+}, [signer]);
 
   const connectWallet = async () => {
     if (!provider) return alert("MetaMask not detected.");
@@ -69,28 +100,23 @@ function App() {
     }
   };
 
+  // Format wallet address to short form (0x1234...5678)
   const shortAddress = (addr) =>
     addr ? addr.slice(0, 6) + "..." + addr.slice(-4) : "";
 
-  // ----------------------------
-  // Load AMM State
-  // ----------------------------
+  // Fetch AMM reserves and spot price from contract
   const loadAmmData = async () => {
     if (!signer) return;
     try {
       const c = getContracts(signer);
-
-      const reserveA = await c.tokenA.balanceOf(CONTRACTS.amm);
-      const reserveB = await c.tokenB.balanceOf(CONTRACTS.amm);
-      const price = await c.amm.getSpotPrice();
-
+      const reserveA = await c.tokenA.balanceOf(CONTRACTS.amm1);
+      const reserveB = await c.tokenB.balanceOf(CONTRACTS.amm1);
+      const price = await c.amm1.getSpotPrice();
       setAmm({
         reserveA: ethers.utils.formatEther(reserveA),
         reserveB: ethers.utils.formatEther(reserveB),
         price: ethers.utils.formatEther(price),
       });
-
-      // push latest price into chart
       setChartLabels((prev) => [...prev, new Date().toLocaleTimeString()]);
       setChartData((prev) => [
         ...prev,
@@ -101,49 +127,38 @@ function App() {
     }
   };
 
-  // ----------------------------
-  // Load Lending State (for attacker contract)
-  // ----------------------------
+  // Fetch lending protocol state for attacker contract
   const loadLendingData = async () => {
     if (!signer) return;
     try {
       const c = getContracts(signer);
-
-      // Read state for the attacker contract address,
-      // since that is who actually holds collateral & borrows.
-      const collateral = await c.lending.collateralA(CONTRACTS.attacker);
-      const debt = await c.lending.debtB(CONTRACTS.attacker);
-      const poolBal = await c.tokenB.balanceOf(CONTRACTS.lending);
-
-      const price = await c.amm.getSpotPrice(); // B per A
-      const collateralValue = collateral
+      const collateralB = await c.lending.collateralB(CONTRACTS.attacker);
+      const debtA = await c.lending.debtA(CONTRACTS.attacker);
+      const poolBal = await c.tokenA.balanceOf(CONTRACTS.lending);
+      const price = await c.amm1.getSpotPrice();
+      const collateralValue = collateralB
         .mul(price)
         .div(ethers.utils.parseEther("1"));
-
-      const maxBorrow = collateralValue.mul(5000).div(10000); // 50% LTV
+      const maxBorrow = collateralValue.mul(7500).div(10000);
 
       setLend({
-        collateral: ethers.utils.formatEther(collateral),
-        collateralValue: ethers.utils.formatEther(collateralValue),
-        debt: ethers.utils.formatEther(debt),
-        maxBorrow: ethers.utils.formatEther(maxBorrow),
-        poolBalance: ethers.utils.formatEther(poolBal),
+        collateralB: ethers.utils.formatEther(collateralB),
+        collateralValueA: ethers.utils.formatEther(collateralValue),
+        debtA: ethers.utils.formatEther(debtA),
+        maxBorrowA: ethers.utils.formatEther(maxBorrow),
+        poolBalanceA: ethers.utils.formatEther(poolBal),
       });
     } catch (err) {
       console.error("Lending load error:", err);
     }
   };
 
-  // ----------------------------
-  // Load Flash Loan State
-  // ----------------------------
+  // Fetch flash loan provider pool balance and fee
   const loadFlashLoanData = async () => {
     if (!signer) return;
     try {
       const c = getContracts(signer);
-
       const poolA = await c.tokenA.balanceOf(CONTRACTS.flashProvider);
-
       setFlash({
         poolA: ethers.utils.formatEther(poolA),
         fee: "0.05%",
@@ -153,180 +168,105 @@ function App() {
     }
   };
 
-  // ----------------------------
-  // Load Attack Summary
-  // ----------------------------
-  const loadAttackSummary = async () => {
+  // Fetch attacker contract state including profit and debt
+  const loadAttackState = async () => {
     if (!signer) return;
     try {
       const c = getContracts(signer);
 
-      // Profit belongs to the BENEFICIARY EOA
-      const attackerBalance = await c.tokenB.balanceOf(CONTRACTS.beneficiary);
-      const lendingBalance = await c.tokenB.balanceOf(CONTRACTS.lending);
+      const state = await c.attacker.getState();
 
-      setAttackerStats({
-        profitB: ethers.utils.formatEther(attackerBalance),
-        poolRemainingB: ethers.utils.formatEther(lendingBalance),
+      setAttackState({
+        beneficiaryA: ethers.utils.formatEther(state.beneficiaryA),
+        beneficiaryB: ethers.utils.formatEther(state.beneficiaryB),
+        myCollateral: ethers.utils.formatEther(state.myCollateral),
+        myDebt: ethers.utils.formatEther(state.myDebt),
+        lastProfit: ethers.utils.formatEther(state.lastProfitAmount),
+        succeeded: state.succeeded,
       });
     } catch (err) {
-      console.error("Attack summary load error:", err);
+      console.error("Attack state load error:", err);
     }
   };
 
-  // ----------------------------
-  // FUND ATTACKER CONTRACT (use deployer / account 0)
-  // ----------------------------
-  const fundAttacker = async () => {
-    if (!signer) return alert("Connect MetaMask first.");
-
+  // Fetch detailed attack metrics from contract for dashboard display
+  const loadDebugState = async () => {
+    if (!signer) return;
     try {
       const c = getContracts(signer);
-
-      const amount = ethers.utils.parseEther("900.4");
-
-      // Transfer TokenA from current EOA to attacker contract
-      const tx = await c.tokenA.transfer(CONTRACTS.attacker, amount);
-      await tx.wait();
-
-      await loadAmmData();
-      await loadLendingData();
-      await loadAttackSummary();
-
-      alert("Attacker contract funded with 900.4 TokenA");
+      const debug = await c.attacker.getDebugState();
+      setDebugState({
+        loanedAmount: ethers.utils.formatEther(debug.loanedAmount),
+        boughtB: ethers.utils.formatEther(debug.boughtB),
+        inflatedPrice: ethers.utils.formatEther(debug.inflatedPrice),
+        collateralValueInA: ethers.utils.formatEther(debug.collateralValueInA),
+        maxBorrowA: ethers.utils.formatEther(debug.maxBorrowA),
+        flashFee: ethers.utils.formatEther(debug.flashFee),
+        repaymentAmount: ethers.utils.formatEther(debug.repaymentAmount),
+        borrowAmount: ethers.utils.formatEther(debug.borrowAmount),
+        contractBalanceAfter: ethers.utils.formatEther(debug.contractBalanceAfter),
+        leftoverA: ethers.utils.formatEther(debug.leftoverA),
+        priceMultiplier: (debug.priceMultiplier.toNumber() / 100).toFixed(2),
+        profitROI: (debug.profitROI.toNumber() / 100).toFixed(2),
+        ltvUsed: (debug.ltvUsed.toNumber() / 100).toFixed(2),
+        pricePumpPercentage: (debug.pricePumpPercentage.toNumber() / 100).toFixed(2),
+      });
     } catch (err) {
-      console.error("Funding failed:", err);
-      alert("Funding failed — this button should be used from the DEPLOYER account.");
+      console.error("Debug state load error:", err);
     }
   };
 
+  // Alert user that attack requires no prefunding (starts with zero capital)
+  const fundAttacker = async () => {
+    alert("Note: Attack starts with ZERO capital. No prefunding needed.\nAll capital comes from flash loans.");
+  };
+
+  // Reset UI charts and refresh all on-chain data
   const resetEnvironment = async () => {
     setChartLabels([]);
     setChartData([]);
     await loadAmmData();
     await loadLendingData();
     await loadFlashLoanData();
-    await loadAttackSummary();
+    await loadAttackState();
     alert("Environment reset (UI + on-chain refresh).");
   };
 
-  // ----------------------------
-  // DEPOSIT COLLATERAL (must be called from beneficiary / account 1)
-  // ----------------------------
-  const depositCollateral = async () => {
+  // Execute flash loan attack with metrics calculation and state refresh
+  const executeRealisticAttack = async () => {
     if (!signer) return alert("Connect MetaMask first.");
     try {
       const c = getContracts(signer);
-
-      const amount = ethers.utils.parseEther("100");
-
-      // 1) Approve attacker contract to pull 100 A from beneficiary EOA
-      const txApprove = await c.tokenA.approve(CONTRACTS.attacker, amount);
-      await txApprove.wait();
-
-      // 2) Attacker contract pulls A and deposits as its own collateral
-      const tx = await c.attacker.depositMyCollateral(amount);
+      const flashAmount = ethers.utils.parseEther("2000");
+      console.log("Executing attack with flash loan:", flashAmount.toString());
+      const tx = await c.attacker.executeAttack(flashAmount);
       await tx.wait();
-
-      await loadLendingData();
-      await loadAttackSummary();
-      alert("Collateral deposited: 100 TokenA (via attacker contract)");
-    } catch (err) {
-      console.error(err);
-      alert("Collateral deposit failed.");
-    }
-  };
-
-  // ----------------------------
-  // PRICE MANIPULATION (EOA swaps on AMM)
-  // ----------------------------
-  const manipulatePrice = async () => {
-    if (!signer) return alert("Connect MetaMask first.");
-    try {
-      const c = getContracts(signer);
-
-      // Use 80 A so account 1 (which has 100 A) can execute this
-      const swapAmount = ethers.utils.parseEther("80");
-
-      const tx1 = await c.tokenA.approve(CONTRACTS.amm, swapAmount);
-      await tx1.wait();
-
-      const tx2 = await c.amm.swapAForB(swapAmount);
-      await tx2.wait();
-
-      await loadAmmData();
-      await loadLendingData();
-      await loadAttackSummary();
-
-      alert("Price manipulated (swap A→B)!");
-    } catch (err) {
-      console.error(err);
-      alert("Price manipulation failed.");
-    }
-  };
-
-  // ----------------------------
-  // MANUAL BORROW (via attacker contract helper)
-  // ----------------------------
-  const borrowAtInflatedPrice = async () => {
-    if (!signer) return alert("Connect MetaMask first.");
-    try {
-      const c = getContracts(signer);
-
-      const borrowAmount = ethers.utils.parseEther("100");
-
-      const tx = await c.attacker.manualBorrow(borrowAmount);
-      await tx.wait();
-
-      await loadLendingData();
-      await loadAttackSummary();
-
-      alert("Borrow succeeded at manipulated collateral value!");
-    } catch (err) {
-      console.error(err);
-      alert("Borrow failed.");
-    }
-  };
-
-  // ----------------------------
-  // FLASH LOAN ATTACK
-  // ----------------------------
-  const handleFlashLoan = async () => {
-    if (!signer) return alert("Connect MetaMask first.");
-    try {
-      const c = getContracts(signer);
-
-      const amount = ethers.utils.parseEther("800");
-
-      const tx = await c.flash.flashLoan(CONTRACTS.attacker, amount, "0x");
-      await tx.wait();
-
       await loadAmmData();
       await loadLendingData();
       await loadFlashLoanData();
-      await loadAttackSummary();
-
-      alert("Flash loan executed!");
+      await loadAttackState();
+      await loadDebugState();
+      alert("Attack executed successfully! Check the metrics panel for details.");
     } catch (err) {
       console.error(err);
-      alert("Flash loan transaction failed.");
+      alert("Attack execution failed: " + err.message);
     }
   };
 
-  // Run data loads on connect
+  // Load all contract data when signer connects
   useEffect(() => {
     if (signer && account) {
       loadAmmData();
       loadLendingData();
       loadFlashLoanData();
-      loadAttackSummary();
+      loadAttackState();
     }
   }, [signer, account]);
 
-  // Refresh summary when AMM or lending change
+  // Refresh attack state when AMM or lending changes
   useEffect(() => {
     if (signer) {
-      loadAttackSummary();
+      loadAttackState();
     }
   }, [amm, lend, signer]);
 
@@ -374,17 +314,17 @@ function App() {
               <div className="wallet-label">Network</div>
               {networkOk ? (
                 <div className="wallet-status-ok">
-                  ✅ Connected to Hardhat (chainId 31337)
+                  Connected to Hardhat (chainId 31337)
                 </div>
               ) : (
                 <div className="wallet-status-warn">
-                  ⚠ Switch MetaMask to the Hardhat network.
+                  Switch MetaMask to the Hardhat network.
                 </div>
               )}
             </div>
 
             <div style={{ marginTop: "0.5rem" }}>
-              <div className="wallet-label">Exploit Flow</div>
+              <div className="wallet-label">Realistic Attack Flow</div>
               <ul
                 style={{
                   margin: "0.35rem 0 0 1rem",
@@ -393,13 +333,13 @@ function App() {
                   color: "#9ca3af",
                 }}
               >
-                <li>1. Fund attacker (Account 0)</li>
-                <li>2. Switch to Account 1</li>
-                <li>3. Deposit collateral</li>
-                <li>4. Manipulate AMM price</li>
-                <li>5. Borrow at inflated price</li>
-                <li>6. Execute flash loan attack</li>
-                <li>7. Profit to beneficiary (Account 1)</li>
+                <li>Start: 0 TokenA, 0 TokenB (zero capital)</li>
+                <li>1. Flash borrow large TokenA amount</li>
+                <li>2. Swap A→B on AMM1 (pump B price)</li>
+                <li>3. Deposit B as collateral at inflated price</li>
+                <li>4. Borrow A at inflated oracle price</li>
+                <li>5. Repay flash loan + 0.05% fee</li>
+                <li>6. Keep leftover A as profit</li>
               </ul>
               <button
                 className="connect-btn"
@@ -424,9 +364,9 @@ function App() {
             <div className="panel">
               <div className="panel-header">
                 <span className="panel-title">
-                  AMM Market (TokenA / TokenB)
+                  AMM1 Market (TokenA ↔ TokenB)
                 </span>
-                <span className="badge-pill">Oracle Source</span>
+                <span className="badge-pill">Price Oracle</span>
               </div>
 
               <div style={{ fontSize: "0.85rem" }}>
@@ -445,7 +385,7 @@ function App() {
                   <div className="metric-pill">
                     <span className="metric-label">Spot Price:</span>
                     <span className="metric-value">
-                      {amm.price} B per A
+                      {amm.price} A per B
                     </span>
                   </div>
                 </div>
@@ -453,9 +393,9 @@ function App() {
                 <button
                   className="connect-btn"
                   style={{ marginTop: "1rem", padding: "0.4rem 1rem" }}
-                  onClick={manipulatePrice}
+                  onClick={loadAmmData}
                 >
-                  Manipulate Price (Swap A→B)
+                  Refresh AMM Data
                 </button>
 
                 <div style={{ marginTop: "1rem" }}>
@@ -467,71 +407,55 @@ function App() {
             {/* LENDING PANEL */}
             <div className="panel">
               <div className="panel-header">
-                <span className="panel-title">Lending Protocol</span>
-                <span className="badge-pill">Vulnerable</span>
+                <span className="panel-title">Lending Protocol (Vulnerable)</span>
+                <span className="badge-pill">Spot Price Oracle</span>
               </div>
 
               <div style={{ fontSize: "0.85rem" }}>
                 <div className="metric-row">
                   <div className="metric-pill">
-                    <span className="metric-label">Collateral (A):</span>
+                    <span className="metric-label">Collateral (B):</span>
                     <span className="metric-value">
-                      {lend.collateral}
+                      {lend.collateralB}
                     </span>
                   </div>
                   <div className="metric-pill">
-                    <span className="metric-label">Value (B):</span>
+                    <span className="metric-label">Value in A:</span>
                     <span className="metric-value">
-                      {lend.collateralValue}
+                      {lend.collateralValueA}
                     </span>
                   </div>
                 </div>
 
                 <div className="metric-row">
                   <div className="metric-pill">
-                    <span className="metric-label">Borrowed (B):</span>
-                    <span className="metric-value">{lend.debt}</span>
+                    <span className="metric-label">Debt (A):</span>
+                    <span className="metric-value">{lend.debtA}</span>
                   </div>
                   <div className="metric-pill">
-                    <span className="metric-label">Max Borrow (B):</span>
-                    <span className="metric-value">{lend.maxBorrow}</span>
+                    <span className="metric-label">Max Borrow (75% LTV):</span>
+                    <span className="metric-value">{lend.maxBorrowA}</span>
                   </div>
                 </div>
 
                 <div className="metric-row">
                   <div className="metric-pill">
-                    <span className="metric-label">Pool Balance (B):</span>
+                    <span className="metric-label">Pool Balance (A):</span>
                     <span className="metric-value">
-                      {lend.poolBalance}
+                      {lend.poolBalanceA}
                     </span>
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: "1rem",
-                    display: "flex",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <button className="connect-btn" onClick={fundAttacker}>
-                    Fund Attacker (900.4 A)
-                  </button>
-                  <button className="connect-btn" onClick={depositCollateral}>
-                    Deposit Collateral (100 A)
-                  </button>
-                  <button
-                    className="connect-btn"
-                    onClick={borrowAtInflatedPrice}
-                  >
-                    Borrow (Manual)
-                  </button>
-                </div>
+                <p style={{ marginTop: "0.75rem", color: "#6b7280", fontSize: "0.8rem" }}>
+                  Uses spot price from AMM without validation or delays.
+                  Vulnerable to oracle manipulation attacks.
+                </p>
               </div>
             </div>
           </div>
 
-          {/* FLASH LOAN + SUMMARY ROW */}
+          {/* FLASH LOAN + ATTACK RESULT ROW */}
           <div className="row-grid">
             {/* FLASH LOAN PANEL */}
             <div className="panel">
@@ -552,47 +476,160 @@ function App() {
                   </div>
                 </div>
 
+                <p style={{ marginTop: "0.75rem", color: "#6b7280", fontSize: "0.8rem" }}>
+                  Provides uncollateralized loans for single block/transaction.
+                  Loan must be repaid + fee by end of transaction.
+                </p>
+
                 <button
                   className="connect-btn"
-                  style={{ marginTop: "1rem", padding: "0.4rem 1rem" }}
-                  onClick={handleFlashLoan}
+                  style={{ 
+                    marginTop: "1rem", 
+                    padding: "0.6rem 1rem",
+                    backgroundColor: "#10b981",
+                    fontWeight: "bold",
+                  }}
+                  onClick={executeRealisticAttack}
                 >
-                  Execute Flash Loan Attack
+                  Execute Attack
                 </button>
               </div>
             </div>
 
-            {/* ATTACK SUMMARY PANEL */}
+            {/* ATTACK RESULT PANEL */}
             <div className="panel">
               <div className="panel-header">
-                <span className="panel-title">Attack Summary</span>
-                <span className="badge-pill">Simulation</span>
+                <span className="panel-title">Attack Results</span>
+                <span className="badge-pill">
+                  {attackState.succeeded ? "SUCCESS" : "PENDING"}
+                </span>
               </div>
 
               <div style={{ fontSize: "0.85rem" }}>
                 <div className="metric-row">
                   <div className="metric-pill">
-                    <span className="metric-label">
-                      Attacker Profit (B):
-                    </span>
-                    <span className="metric-value">
-                      {attackerStats.profitB}
+                    <span className="metric-label">Profit (A):</span>
+                    <span className="metric-value" style={{ color: attackState.lastProfit > 0 ? "#10b981" : "#ef4444" }}>
+                      {attackState.lastProfit}
                     </span>
                   </div>
                   <div className="metric-pill">
-                    <span className="metric-label">
-                      Pool Remaining (B):
-                    </span>
+                    <span className="metric-label">Beneficiary A:</span>
                     <span className="metric-value">
-                      {attackerStats.poolRemainingB}
+                      {attackState.beneficiaryA}
                     </span>
                   </div>
                 </div>
 
-                <p style={{ marginTop: "0.75rem", color: "#6b7280" }}>
-                  These values update live as the AMM is manipulated or
-                  when tokens are borrowed.
-                </p>
+                <div className="metric-row">
+                  <div className="metric-pill">
+                    <span className="metric-label">Collateral B (locked):</span>
+                    <span className="metric-value">
+                      {attackState.myCollateral}
+                    </span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Debt A (owed):</span>
+                    <span className="metric-value">
+                      {attackState.myDebt}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* COMPREHENSIVE METRICS PANEL FOR PRESENTATION */}
+          <div className="panel" style={{ marginTop: "1rem", gridColumn: "1 / -1" }}>
+            <div className="panel-header">
+              <span className="panel-title">Attack Metrics & Analysis</span>
+              <span className="badge-pill">Lab Demonstration</span>
+            </div>
+
+            <div style={{ fontSize: "0.85rem" }}>
+              {/* Row 1: Core Attack Values */}
+              <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #374151" }}>
+                <strong style={{ color: "#f3f4f6" }}>Phase 1-2: Flash Loan & Price Manipulation</strong>
+                <div className="metric-row" style={{ marginTop: "0.5rem" }}>
+                  <div className="metric-pill">
+                    <span className="metric-label">Flash Loan Amount:</span>
+                    <span className="metric-value">{debugState.loanedAmount} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">TokenB Purchased:</span>
+                    <span className="metric-value">{debugState.boughtB} B</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Flash Fee (0.05%):</span>
+                    <span className="metric-value">{debugState.flashFee} A</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: Price Impact Analysis */}
+              <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #374151" }}>
+                <strong style={{ color: "#f3f4f6" }}>Price Impact Metrics</strong>
+                <div className="metric-row" style={{ marginTop: "0.5rem" }}>
+                  <div className="metric-pill">
+                    <span className="metric-label">Initial Price (A/B):</span>
+                    <span className="metric-value">1.5</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Inflated Price (A/B):</span>
+                    <span className="metric-value">{debugState.inflatedPrice}</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Price Multiplier:</span>
+                    <span className="metric-value" style={{ color: "#fbbf24" }}>{debugState.priceMultiplier}x</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Price Pump %:</span>
+                    <span className="metric-value" style={{ color: "#f87171" }}>{debugState.pricePumpPercentage}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Collateral & Borrowing */}
+              <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #374151" }}>
+                <strong style={{ color: "#f3f4f6" }}>Phase 3-4: Collateral Deposit & Inflated Borrowing</strong>
+                <div className="metric-row" style={{ marginTop: "0.5rem" }}>
+                  <div className="metric-pill">
+                    <span className="metric-label">Collateral Value (A):</span>
+                    <span className="metric-value">{debugState.collateralValueInA} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Max Borrow @ 75% LTV:</span>
+                    <span className="metric-value" style={{ color: "#86efac" }}>{debugState.maxBorrowA} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Actual Borrow:</span>
+                    <span className="metric-value" style={{ color: "#86efac" }}>{debugState.borrowAmount} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">LTV Used:</span>
+                    <span className="metric-value">{debugState.ltvUsed}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 4: Profitability Analysis */}
+              <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #374151" }}>
+                <strong style={{ color: "#f3f4f6" }}>Phase 5-6: Repayment & Profit</strong>
+                <div className="metric-row" style={{ marginTop: "0.5rem" }}>
+                  <div className="metric-pill">
+                    <span className="metric-label">Required Repayment:</span>
+                    <span className="metric-value">{debugState.repaymentAmount} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Final Profit:</span>
+                    <span className="metric-value" style={{ color: "#34d399", fontWeight: "bold" }}>{debugState.leftoverA} A</span>
+                  </div>
+                  <div className="metric-pill">
+                    <span className="metric-label">Profit ROI:</span>
+                    <span className="metric-value" style={{ color: "#34d399", fontWeight: "bold" }}>{debugState.profitROI}%</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
