@@ -258,18 +258,34 @@ function SecurityModal({ isOpen, onClose, securityData, signer, getContracts }) 
           }
         }
 
+        // Get real-time Multi-Oracle aggregated price
+        let currentMultiOraclePrice = securityData.multiOraclePrice || "0.667";
+        let multiOracleStatus = "Initializing";
+        
+        if (contracts.multiOracle && multiOracleHealth.status === "Active") {
+          try {
+            const aggregatedPrice = await contracts.multiOracle.getAggregatedPrice();
+            currentMultiOraclePrice = ethers.utils.formatEther(aggregatedPrice);
+            multiOracleStatus = "✅ Active";
+            console.log("Real-time Multi-Oracle aggregated price:", currentMultiOraclePrice);
+          } catch (err) {
+            console.error("Failed to get real-time Multi-Oracle price:", err.message);
+            multiOracleStatus = securityData.multiOracleAvailable === true ? "Active" : 
+                               securityData.multiOracleAvailable === "ERROR" ? "Attack Detected" : 
+                               securityData.circuitBreakerStatus.includes("Multi-Oracle Active") ? "Active" :
+                               securityData.circuitBreakerStatus.includes("Variance Mode") ? "Active (Variance)" :
+                               "Error";
+          }
+        }
+
         setRealTimeData({
           preAttackPrice: ethers.utils.formatEther(preAttackPrice),
           vulnerableCollateralValue: ethers.utils.formatEther(collateralB.mul(ethers.utils.parseEther(securityData.spotPrice || "0.667")).div(ethers.utils.parseEther("1"))),
           vulnerableMaxBorrow: ethers.utils.formatEther(collateralB.mul(ethers.utils.parseEther(securityData.spotPrice || "0.667")).div(ethers.utils.parseEther("1")).mul(75).div(100)),
           twapCollateralValue: ethers.utils.formatEther(collateralB.mul(ethers.utils.parseEther(securityData.twapPrice || "0.667")).div(ethers.utils.parseEther("1"))),
           twapMaxBorrow: ethers.utils.formatEther(collateralB.mul(ethers.utils.parseEther(securityData.twapPrice || "0.667")).div(ethers.utils.parseEther("1")).mul(75).div(100)),
-          multiOraclePrice: securityData.multiOraclePrice || "0.667",
-          multiOracleStatus: securityData.multiOracleAvailable === true ? "Active" : 
-                           securityData.multiOracleAvailable === "ERROR" ? "Attack Detected" : 
-                           securityData.circuitBreakerStatus.includes("Multi-Oracle Active") ? "Active" :
-                           securityData.circuitBreakerStatus.includes("Variance Mode") ? "Active (Variance)" :
-                           "Initializing",
+          multiOraclePrice: currentMultiOraclePrice,
+          multiOracleStatus: multiOracleStatus,
           collateralAmount: ethers.utils.formatEther(collateralB),
           poolBalanceA: ethers.utils.formatEther(poolBalanceA),
           individualOracles: individualOracles,
@@ -812,7 +828,7 @@ function SecurityModal({ isOpen, onClose, securityData, signer, getContracts }) 
           <p style={{ margin: '0.3rem 0' }}>
             <strong style={{ color: '#f87171' }}>Demo Takeaway:</strong> Flash loan attacks manipulate spot prices instantly, but time-weighted and multi-oracle systems resist manipulation by using historical data and consensus mechanisms.
           </p>
-        </div>
+        </div> 
       </div>
     </div>
   );
