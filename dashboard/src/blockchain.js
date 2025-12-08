@@ -7,6 +7,8 @@ import SimpleAMM from "./abis/SimpleAMM.json";
 import Lending from "./abis/VulnerableLending.json";
 import FlashProvider from "./abis/FlashLoanProvider.json";
 import AttackerFlash from "./abis/AttackerFlash.json";
+import TWAPOracle from "./abis/TWAPOracle.json";
+import MultiOracleAggregator from "./abis/MultiOracleAggregator.json";
 
 export function getContracts(signer) {
   return {
@@ -17,5 +19,7 @@ export function getContracts(signer) {
     lending: new ethers.Contract(CONTRACTS.lending, Lending.abi, signer),
     flash: new ethers.Contract(CONTRACTS.flashProvider, FlashProvider.abi, signer),
     attacker: new ethers.Contract(CONTRACTS.attacker, AttackerFlash.abi, signer),
+    twapOracle: CONTRACTS.twapOracle ? new ethers.Contract(CONTRACTS.twapOracle, TWAPOracle.abi, signer) : null,
+    multiOracle: CONTRACTS.multiOracle ? new ethers.Contract(CONTRACTS.multiOracle, MultiOracleAggregator.abi, signer) : null,
   };
 }

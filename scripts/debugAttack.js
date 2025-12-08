@@ -31,7 +31,6 @@ async function main() {
       console.log(`Actual Borrow Amount:       ${hre.ethers.utils.formatEther(debug.borrowAmount)} A`);
       console.log(`Contract Balance After:     ${hre.ethers.utils.formatEther(debug.contractBalanceAfter)} A`);
       console.log(`\nLEFTOVER / PROFIT:          ${hre.ethers.utils.formatEther(debug.leftoverA)} A\n`);
-
       console.log("=== ATTACK METRICS ===\n");
       console.log(`Price Multiplier:           ${(debug.priceMultiplier.toNumber() / 100).toFixed(2)}x`);
       console.log(`Price Pump Percentage:      ${(debug.pricePumpPercentage.toNumber() / 100).toFixed(2)}%`);

@@ -99,7 +99,7 @@ async function main() {
   // Seed AMM2 - lower liquidity for fair-price swaps
   console.log("Seeding AMM2 with lower liquidity (200 A + 200 B)...");
   seedA = hre.ethers.utils.parseEther("200");
-  seedB = hre.ethers.utils.parseEther("200");
+  seedB = hre.ethers.utils.parseEther("290");
   await tokenA.approve(amm2.address, seedA);
   await tokenB.approve(amm2.address, seedB);
   await amm2.addLiquidity(seedA, seedB);
